@@ -102,6 +102,58 @@ app.post('/api/transcribe', upload.single('audio'), async (req: Request, res: Re
   }
 });
 
+// Translation endpoint
+app.post('/api/translate', upload.single('audio'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No audio file provided' });
+      return;
+    }
+
+    console.log('audio file received for translation');
+
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Create a temporary file
+    const tempFilePath = join(tmpdir(), `audio-${Date.now()}.webm`);
+    await writeFile(tempFilePath, req.file.buffer);
+    
+    // First, transcribe the audio
+    const transcription = await openai.audio.transcriptions.create({
+      file: createReadStream(tempFilePath),
+      model: "whisper-1",
+      response_format: "verbose_json",
+      language: req.body.sourceLanguage || undefined,
+    });
+
+    // Then, translate the transcribed text
+    const translation = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `You are a translator. Translate the following text from ${req.body.sourceLanguage} to ${req.body.targetLanguage}. Only return the translated text, nothing else.`
+        },
+        {
+          role: "user",
+          content: transcription.text
+        }
+      ],
+    });
+    
+    // Send the translation result
+    res.write(`data: ${JSON.stringify({ text: translation.choices[0].message.content })}\n\n`);
+    res.end();
+
+  } catch (error) {
+    console.error('Error processing audio translation:', error);
+    res.status(500).json({ error: 'Failed to process audio translation' });
+  }
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

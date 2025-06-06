@@ -86,14 +86,15 @@ export default function Home() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
       formData.append('sourceLanguage', sourceLanguage);
+      formData.append('targetLanguage', targetLanguage);
 
-      const response = await fetch('http://localhost:3001/api/transcribe', {
+      const response = await fetch('http://localhost:3001/api/translate', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to transcribe audio');
+        throw new Error('Failed to translate audio');
       }
 
       const reader = response.body?.getReader();
