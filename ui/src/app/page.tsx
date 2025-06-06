@@ -11,6 +11,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const languages = [
     { code: 'en', name: 'English' },
@@ -22,19 +23,37 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
-      });
-      mediaRecorderRef.current = mediaRecorder;
+      
+      const startNewRecording = () => {
+        if (!streamRef.current) return;
+        
+        const mediaRecorder = new MediaRecorder(streamRef.current, {
+          mimeType: 'audio/webm',
+        });
+        mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size > 0) {
-          await sendAudioToServer(event.data);
-        }
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            await sendAudioToServer(event.data);
+          }
+        };
+
+        mediaRecorder.start();
+        
+        // Stop and send after 10 seconds
+        setTimeout(() => {
+          if (mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+        }, 10000);
       };
 
-      // Send data every 10 seconds
-      mediaRecorder.start(10000);
+      // Start first recording
+      startNewRecording();
+      
+      // Set up interval to create new recordings every 10 seconds
+      recordingIntervalRef.current = setInterval(startNewRecording, 10000);
+      
       setIsRecording(true);
     } catch (error) {
       console.error('Error accessing microphone:', error);
@@ -43,13 +62,19 @@ export default function Home() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      setIsRecording(false);
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
     }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    setIsRecording(false);
   };
 
   const startNewSession = () => {
