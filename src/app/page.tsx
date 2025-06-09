@@ -88,7 +88,7 @@ export default function Home() {
       formData.append('sourceLanguage', sourceLanguage);
       formData.append('targetLanguage', targetLanguage);
 
-      const response = await fetch('http://localhost:3001/api/translate', {
+      const response = await fetch('/api/translate', {
         method: 'POST',
         body: formData,
       });
@@ -97,27 +97,8 @@ export default function Home() {
         throw new Error('Failed to translate audio');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) return;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const text = new TextDecoder().decode(value);
-        const lines = text.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              setStreamedText(prev => [...prev, data.text]);
-            } catch (e) {
-              console.error('Error parsing SSE data:', e);
-            }
-          }
-        }
-      }
+      const data = await response.json();
+      setStreamedText(prev => [...prev, data.text]);
     } catch (error) {
       console.error('Error sending audio to server:', error);
     }

@@ -16,3 +16,12 @@ If the input is not in the language initially entered or already on the target l
 2. Figure out backend <-> ai communication. Need to figure out streaming protocol. First version can stream ai output in the stdout. It can also accept audio as a file. After that figure out how to pass audio as a stream.
 3. Figure out frontend <-> backend communication. Need to figure out the best protocol which can stream audio to the backend. It can be ugly but functional at this point.
 4. Work on UI. Make it look nice.
+
+## Next steps:
+1. IGNORED Solve problem of loosing context each 10 seconds.
+2. DONE Don't call translation if the wisperer returned nothing.
+3. Move backend logic to next js
+4. Remove backend folder
+5. Figure out how to authenticate user for the app
+6. Figure out how to work with secrets manager
+7. Deploy my express app to aws lambda
