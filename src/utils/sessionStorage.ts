@@ -19,7 +19,7 @@ const SESSION_EXPIRATION_HOURS = 24;
 
 type SessionRow = {
   session_id: string;
-  translations: TranslationEntry[] | null;
+  translations: string | TranslationEntry[] | null;
   created_at: string;
   last_updated: string;
 };
@@ -44,7 +44,7 @@ export async function loadSession(sessionId: string): Promise<SessionData | null
       SELECT session_id, translations, created_at, last_updated
       FROM sessions
       WHERE session_id = ${sessionId}
-      AND (last_updated >= NOW() - INTERVAL '${SESSION_EXPIRATION_HOURS} hours')
+      AND (last_updated >= NOW() - ${SESSION_EXPIRATION_HOURS} * INTERVAL '1 hour')
     ` as SessionRow[];
 
     if (rows.length === 0) {
@@ -52,9 +52,14 @@ export async function loadSession(sessionId: string): Promise<SessionData | null
     }
 
     const row = rows[0];
+    const translationArray =
+      typeof row.translations === 'string'
+        ? (JSON.parse(row.translations) as TranslationEntry[])
+        : row.translations ?? [];
+
     return {
       sessionId: row.session_id,
-      translations: row.translations ?? [],
+      translations: translationArray,
       createdAt: row.created_at,
       lastUpdated: row.last_updated
     };
@@ -67,9 +72,10 @@ export async function loadSession(sessionId: string): Promise<SessionData | null
 export async function saveSession(sessionData: SessionData): Promise<void> {
   try {
     const sql = getSqlClient();
+    const translationsJson = JSON.stringify(sessionData.translations);
     await sql`
       INSERT INTO sessions (session_id, translations, created_at, last_updated)
-      VALUES (${sessionData.sessionId}, ${sessionData.translations}, ${sessionData.createdAt}, ${sessionData.lastUpdated})
+      VALUES (${sessionData.sessionId}, ${translationsJson}::jsonb, ${sessionData.createdAt}, ${sessionData.lastUpdated})
       ON CONFLICT (session_id)
       DO UPDATE SET
         translations = EXCLUDED.translations,

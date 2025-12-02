@@ -15,9 +15,13 @@ Quick reference checklist for deploying the Voice Translator app to Vercel.
   - [x] Test API route locally
 
 - [ ] **Neon Database**
-  - [ ] Create database via Vercel Storage or Neon dashboard
-  - [ ] Run `psql "$DATABASE_URL" -f docs/neon-schema.sql`
-  - [ ] Confirm `sessions` table exists
+  - [x] Create database via Vercel Storage or Neon dashboard
+  - [x] Run `psql "$DATABASE_URL" -f docs/neon-schema.sql`
+  - [x] Confirm `sessions` table exists
+
+- [ ] **Fix bugs**
+  - [x] Clean up page js
+  - [x] Check my open ai balance
 
 - [ ] **Code Quality**
   - [x] Run `npm run build` successfully

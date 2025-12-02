@@ -101,39 +101,39 @@ export default function Home() {
           console.debug('Realtime event', parsed);
           let transcript = null;
           switch (parsed.type) {
-          // case "transcription_session.created":
-          //   let sessionConfig = parsed.session;
-          //   console.log("session created: " + sessionConfig.id);
-          //   break;
-          case "input_audio_buffer.speech_started":
-            // transcript = {
-            //   transcript: "...",
-            //   partial: true,
-            // }
-            // handleTranscript(transcript);
-            break;
-          case "input_audio_buffer.speech_stopped":
-            // transcript = {
-            //   transcript: "***",
-            //   partial: true,
-            // }
-            // handleTranscript(transcript);
-            // vadTime = performance.now() - sessionConfig.turn_detection.silence_duration_ms;
-            break;
-          //case "conversation.item.input_audio_transcription.delta":
-          //  transcriptEl.value += parsed.delta;
-          //  break;
-          case "conversation.item.input_audio_transcription.completed":
-            const elapsed = performance.now();
-            transcript = {
-              transcript: parsed.transcript,
-              partial: false,
-              latencyMs: elapsed.toFixed(0)
-            }
+            // case "transcription_session.created":
+            //   const sessionConfig = parsed.session;
+            //   console.log("session created: " + sessionConfig.id);
+            //   break;
+            case "input_audio_buffer.speech_started":
+              // transcript = {
+              //   transcript: "...",
+              //   partial: true,
+              // }
+              // handleTranscript(transcript);
+              break;
+            case "input_audio_buffer.speech_stopped":
+              // transcript = {
+              //   transcript: "***",
+              //   partial: true,
+              // }
+              // handleTranscript(transcript);
+              // vadTime = performance.now() - sessionConfig.turn_detection.silence_duration_ms;
+              break;
+            //case "conversation.item.input_audio_transcription.delta":
+            //  transcriptEl.value += parsed.delta;
+            //  break;
+            case "conversation.item.input_audio_transcription.completed":
+              const elapsed = performance.now();
+              transcript = {
+                transcript: parsed.transcript,
+                partial: false,
+                latencyMs: elapsed.toFixed(0)
+              }
 
-            handleTranscript(transcript);
-            break;
-        }
+              handleTranscript(transcript);
+              break;
+          }
         };
       };
 
