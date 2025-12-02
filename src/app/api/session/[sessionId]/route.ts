@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadSession } from '@/utils/sessionStorage';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const sessionId = params.sessionId;
+    const resolvedParams = await params;
+    const sessionId = resolvedParams.sessionId;
     
     if (!sessionId) {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
     }
 
-    const session = loadSession(sessionId);
+    const session = await loadSession(sessionId);
     
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });

@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Voice Translator
 
-## Getting Started
+Modern Next.js 15 application that streams microphone audio to OpenAI’s Realtime APIs, persists translation history in Neon Postgres (serverless on Vercel), and surfaces live transcripts + translations in a simple UI.
 
-First, run the development server:
+## Requirements
+
+- Node.js 18.18+ (tested on 22.12)
+- npm 10+
+- OpenAI API access with Realtime + GPT-4o-mini models enabled
+- Neon Postgres database (Vercel integration recommended) for session storage
+
+## Environment Variables
+
+Copy `env.example` to `.env.local` and populate the values:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Description |
+| --- | --- |
+| `OPENAI_API_KEY` | OpenAI API key with realtime + responses rights |
+| `DATABASE_URL` | Neon Postgres connection string (with `sslmode=require`) |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+These variables must be configured in Vercel → Project Settings → Environment Variables for Production, Preview, and Development.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local Development
 
-## Learn More
+Install dependencies and run the dev server:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Visit `http://localhost:3000`, select source/target languages, allow microphone access, and start recording.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run the usual project checks before pushing:
 
-## Deploy on Vercel
+```bash
+npm run lint
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database Setup
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Provision a Neon Postgres database (you can create it directly from Vercel → Storage → Postgres or at [https://neon.tech](https://neon.tech)).
+2. Copy the connection string (`postgres://...`) and place it in `.env.local` as `DATABASE_URL`.
+3. Run the schema to create the sessions table:
+
+```bash
+psql "$DATABASE_URL" -f docs/neon-schema.sql
+```
+
+## Deployment (Vercel)
+
+1. **Create / link project**  
+   - Push code to GitHub/GitLab/Bitbucket.  
+   - Import the repository from the Vercel dashboard (framework auto-detects as Next.js).
+
+2. **Provision Neon Postgres**  
+   - Dashboard → Storage → Postgres → “Create Database”.  
+   - Copy the connection string (`DATABASE_URL`) and run the schema above.
+
+3. **Add environment variables**  
+   - `OPENAI_API_KEY`, `DATABASE_URL` (all environments).
+
+4. **Deploy**  
+   - Trigger a production deploy from Vercel dashboard or run `vercel --prod`.
+   - Verify the deployment URL loads, microphone permissions work, and `/api` routes respond.
+
+## Troubleshooting
+
+- Re-run `npm run build` locally to reproduce build issues before deploying.
+- Inspect function logs via Vercel dashboard for API errors (KV/OPENAI misconfig).
+- Ensure the browser has granted microphone access; otherwise speech events never reach OpenAI.

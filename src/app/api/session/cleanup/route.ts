@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const { maxAgeHours = 24 } = await request.json();
     
-    cleanupOldSessions(maxAgeHours);
+    await cleanupOldSessions(maxAgeHours);
     
     return NextResponse.json({ 
       message: `Cleaned up sessions older than ${maxAgeHours} hours`,

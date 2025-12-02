@@ -9,12 +9,20 @@ export default function Home() {
   const [sourceLanguage, setSourceLanguage] = useState('');
   const [targetLanguage, setTargetLanguage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const sessionRef = useRef<any>(null);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  type RealtimeSession = {
+    pc: RTCPeerConnection;
+    dc: RTCDataChannel;
+    sessionId: string;
+  };
+  const sessionRef = useRef<RealtimeSession | null>(null);
   const originalTextRef = useRef<HTMLDivElement>(null);
   const translatedTextRef = useRef<HTMLDivElement>(null);
-  let vadTime = 0;
+
+  type TranscriptPayload = {
+    transcript: string;
+    partial: boolean;
+    latencyMs?: string;
+  };
 
   const languages = [
     { code: 'en', name: 'English' },
@@ -36,8 +44,12 @@ export default function Home() {
     }
   }, [translatedText]);
 
-  const handleTranscript = async (transcriptData: any) => {
-      // Add original transcript
+  const handleTranscript = async (transcriptData: TranscriptPayload) => {
+      if (!sessionRef.current) {
+        console.warn('No active session for transcript');
+        return;
+      }
+
       setOriginalText(prev => [...prev, "\n", transcriptData.transcript]);
 
       const formData = new FormData();
@@ -56,7 +68,6 @@ export default function Home() {
       }
 
      const data = await response.json();
-     // Add translation
      setTranslatedText(prev => [...prev, "\n", data.text]);
   }
 
@@ -72,18 +83,14 @@ export default function Home() {
       }
       const sessionData = await sessionResponse.json();
       const clientSecret = sessionData.client_secret.value;
-
-            console.log(sessionData);
       
             // here we start working with realtime api
 
       const pc = new RTCPeerConnection();
-      pc.addTrack(stream.getTracks()[0]);
+      pc.addTrack(stream.getTracks()[0], stream);
       const dc = pc.createDataChannel('');
-      // dc.onopen = (e: any) => console.log(e);
-      dc.onmessage = (e: any) => {
-        let parsed = JSON.parse(e.data);
-        // console.log(parsed);
+      dc.onmessage = (event: MessageEvent<string>) => {
+        const parsed = JSON.parse(event.data);
         let transcript = null;
         switch (parsed.type) {
           // case "transcription_session.created":
@@ -109,7 +116,7 @@ export default function Home() {
           //  transcriptEl.value += parsed.delta;
           //  break;
           case "conversation.item.input_audio_transcription.completed":
-            const elapsed = performance.now() - vadTime;
+            const elapsed = performance.now();
             transcript = {
               transcript: parsed.transcript,
               partial: false,
@@ -120,10 +127,9 @@ export default function Home() {
             break;
         }
       }
-
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      let sdpResponse = await fetch(`https://api.openai.com/v1/realtime`, {
+      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime`, {
         method: "POST",
         body: offer.sdp,
         headers: {
@@ -136,7 +142,7 @@ export default function Home() {
       }
 
       await pc.setRemoteDescription({ type: "answer", sdp: await sdpResponse.text() })
-      const sessionId =       sessionData.id;
+      const sessionId = sessionData.id;
 
       sessionRef.current = { pc, dc, sessionId }; 
       
@@ -152,35 +158,11 @@ export default function Home() {
       sessionRef.current = null;
     }
     setIsRecording(false);
-    setIsRecording(false);
   };
 
   const startNewSession = () => {
     setOriginalText([]);
     setTranslatedText([]);
-  };
-
-  const sendAudioToServer = async (audioBlob: Blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-      formData.append('sourceLanguage', sourceLanguage);
-      formData.append('targetLanguage', targetLanguage);
-
-      const response = await fetch('/api/translate', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to translate audio');
-      }
-
-      const data = await response.json();
-      setTranslatedText(prev => [...prev, data.text]);
-    } catch (error) {
-      console.error('Error sending audio to server:', error);
-    }
   };
 
   return (

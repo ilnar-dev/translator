@@ -9,6 +9,7 @@ Delay between audio input and output should be minimal.
 ## Technical details
 Text and audio should be streamed to the client and out from the client.
 The system prompt for ai should accept the languages specified and pass it to ai.
+Session history must live in a managed database (Neon Postgres) so it survives serverless cold starts.
 If the input is not in the language initially entered or already on the target language let AI to figure that out.
 
 ## Work plan

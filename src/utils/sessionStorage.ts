@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { neon } from '@neondatabase/serverless';
 
 interface TranslationEntry {
   timestamp: string;
@@ -9,65 +8,87 @@ interface TranslationEntry {
   targetLanguage: string;
 }
 
-interface SessionData {
+export interface SessionData {
   sessionId: string;
   translations: TranslationEntry[];
   createdAt: string;
   lastUpdated: string;
 }
 
-const SESSIONS_DIR = path.join(process.cwd(), 'data', 'sessions');
+const SESSION_EXPIRATION_HOURS = 24;
 
-// Ensure sessions directory exists
-function ensureSessionsDir() {
-  if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+type SessionRow = {
+  session_id: string;
+  translations: TranslationEntry[] | null;
+  created_at: string;
+  last_updated: string;
+};
+
+let sqlClient: ReturnType<typeof neon> | null = null;
+
+function getSqlClient() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not set. Please configure Neon Postgres connection string.');
   }
+  if (!sqlClient) {
+    sqlClient = neon(connectionString);
+  }
+  return sqlClient;
 }
 
-// Get session file path
-function getSessionFilePath(sessionId: string): string {
-  return path.join(SESSIONS_DIR, `${sessionId}.json`);
-}
-
-// Load session data
-export function loadSession(sessionId: string): SessionData | null {
+export async function loadSession(sessionId: string): Promise<SessionData | null> {
   try {
-    ensureSessionsDir();
-    const filePath = getSessionFilePath(sessionId);
-    
-    if (!fs.existsSync(filePath)) {
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT session_id, translations, created_at, last_updated
+      FROM sessions
+      WHERE session_id = ${sessionId}
+      AND (last_updated >= NOW() - INTERVAL '${SESSION_EXPIRATION_HOURS} hours')
+    ` as SessionRow[];
+
+    if (rows.length === 0) {
       return null;
     }
-    
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data) as SessionData;
+
+    const row = rows[0];
+    return {
+      sessionId: row.session_id,
+      translations: row.translations ?? [],
+      createdAt: row.created_at,
+      lastUpdated: row.last_updated
+    };
   } catch (error) {
     console.error('Error loading session:', error);
     return null;
   }
 }
 
-// Save session data
-export function saveSession(sessionData: SessionData): void {
+export async function saveSession(sessionData: SessionData): Promise<void> {
   try {
-    ensureSessionsDir();
-    const filePath = getSessionFilePath(sessionData.sessionId);
-    fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
+    const sql = getSqlClient();
+    await sql`
+      INSERT INTO sessions (session_id, translations, created_at, last_updated)
+      VALUES (${sessionData.sessionId}, ${sessionData.translations}, ${sessionData.createdAt}, ${sessionData.lastUpdated})
+      ON CONFLICT (session_id)
+      DO UPDATE SET
+        translations = EXCLUDED.translations,
+        last_updated = EXCLUDED.last_updated
+    `;
   } catch (error) {
     console.error('Error saving session:', error);
   }
 }
 
 // Add translation to session
-export function addTranslationToSession(
+export async function addTranslationToSession(
   sessionId: string,
   originalText: string,
   translatedText: string,
   sourceLanguage: string,
   targetLanguage: string
-): void {
-  const session = loadSession(sessionId) || {
+): Promise<void> {
+  const session = (await loadSession(sessionId)) || {
     sessionId,
     translations: [],
     createdAt: new Date().toISOString(),
@@ -85,12 +106,12 @@ export function addTranslationToSession(
   session.translations.push(translationEntry);
   session.lastUpdated = new Date().toISOString();
   
-  saveSession(session);
+  await saveSession(session);
 }
 
 // Get translation context for OpenAI (legacy - kept for compatibility)
-export function getTranslationContext(sessionId: string, maxEntries: number = 5): string {
-  const session = loadSession(sessionId);
+export async function getTranslationContext(sessionId: string, maxEntries: number = 5): Promise<string> {
+  const session = await loadSession(sessionId);
 
   if (!session || session.translations.length === 0) {
     return '';
@@ -108,8 +129,8 @@ export function getTranslationContext(sessionId: string, maxEntries: number = 5)
 }
 
 // Get conversation history as OpenAI messages format
-export function getConversationHistory(sessionId: string, maxEntries: number = 10): Array<{role: 'user' | 'assistant', content: string}> {
-  const session = loadSession(sessionId);
+export async function getConversationHistory(sessionId: string, maxEntries: number = 10): Promise<Array<{role: 'user' | 'assistant', content: string}>> {
+  const session = await loadSession(sessionId);
 
   if (!session || session.translations.length === 0) {
     return [];
@@ -134,25 +155,13 @@ export function getConversationHistory(sessionId: string, maxEntries: number = 1
   return messages;
 }
 
-// Clean up old sessions (optional utility)
-export function cleanupOldSessions(maxAgeHours: number = 24): void {
+export async function cleanupOldSessions(maxAgeHours: number = 24): Promise<void> {
   try {
-    ensureSessionsDir();
-    const files = fs.readdirSync(SESSIONS_DIR);
-    const now = new Date();
-    
-    files.forEach(file => {
-      if (file.endsWith('.json')) {
-        const filePath = path.join(SESSIONS_DIR, file);
-        const stats = fs.statSync(filePath);
-        const ageHours = (now.getTime() - stats.mtime.getTime()) / (1000 * 60 * 60);
-        
-        if (ageHours > maxAgeHours) {
-          fs.unlinkSync(filePath);
-          console.log(`Cleaned up old session: ${file}`);
-        }
-      }
-    });
+    const sql = getSqlClient();
+    await sql`
+      DELETE FROM sessions
+      WHERE last_updated < NOW() - (${maxAgeHours} * INTERVAL '1 hour')
+    `;
   } catch (error) {
     console.error('Error cleaning up sessions:', error);
   }
