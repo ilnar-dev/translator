@@ -88,11 +88,19 @@ export default function Home() {
 
       const pc = new RTCPeerConnection();
       pc.addTrack(stream.getTracks()[0], stream);
-      const dc = pc.createDataChannel('');
-      dc.onmessage = (event: MessageEvent<string>) => {
-        const parsed = JSON.parse(event.data);
-        let transcript = null;
-        switch (parsed.type) {
+
+      const configureDataChannel = (channel: RTCDataChannel) => {
+        channel.onopen = () => {
+          console.info('Realtime data channel open:', channel.label || '(default)');
+        };
+        channel.onerror = (event) => {
+          console.error('Realtime data channel error', event);
+        };
+        channel.onmessage = (event: MessageEvent<string>) => {
+          const parsed = JSON.parse(event.data);
+          console.debug('Realtime event', parsed);
+          let transcript = null;
+          switch (parsed.type) {
           // case "transcription_session.created":
           //   let sessionConfig = parsed.session;
           //   console.log("session created: " + sessionConfig.id);
@@ -126,12 +134,42 @@ export default function Home() {
             handleTranscript(transcript);
             break;
         }
-      }
+        };
+      };
+
+      const dc = pc.createDataChannel('oai-events');
+      configureDataChannel(dc);
+
+      pc.ondatachannel = (event) => {
+        console.info('Realtime remote data channel', event.channel.label);
+        configureDataChannel(event.channel);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.info('PeerConnection state:', pc.connectionState);
+      };
+
+      const waitForIceGatheringComplete = async () => {
+        if (pc.iceGatheringState === 'complete') {
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          const checkState = () => {
+            if (pc.iceGatheringState === 'complete') {
+              pc.removeEventListener('icegatheringstatechange', checkState);
+              resolve();
+            }
+          };
+          pc.addEventListener('icegatheringstatechange', checkState);
+        });
+      };
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      await waitForIceGatheringComplete();
       const sdpResponse = await fetch(`https://api.openai.com/v1/realtime`, {
         method: "POST",
-        body: offer.sdp,
+        body: pc.localDescription?.sdp ?? offer.sdp,
         headers: {
           Authorization: `Bearer ${clientSecret}`,        
           "Content-Type": "application/sdp"
