@@ -545,7 +545,7 @@ export default function TranslatorPage() {
               <CardContent className="text-sm text-slate-400">
                 <p>
                   1. Select your source and target languages above. <br />
-                  2. Hit "Start capture" and speak clearly into your microphone. <br />
+                  2. Hit &quot;Start capture&quot; and speak clearly into your microphone. <br />
                   3. Stop the session to free the channel, then reset for a new conversation. <br />
                   4. Use session history on the left to restore and continue previous sessions.
                 </p>
