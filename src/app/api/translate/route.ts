@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { addTranslationToSession, getConversationHistory } from '@/utils/sessionStorage';
+import { addTranslationToSession, getConversationHistory } from '@/lib/db/sessions';
 
 // Initialize OpenAI
 const openai = new OpenAI({

@@ -1,3 +1,5 @@
+'use server';
+
 import { neon } from '@neondatabase/serverless';
 
 interface TranslationEntry {
@@ -14,8 +16,6 @@ export interface SessionData {
   createdAt: string;
   lastUpdated: string;
 }
-
-const SESSION_EXPIRATION_HOURS = 24;
 
 type SessionRow = {
   session_id: string;
@@ -44,7 +44,6 @@ export async function loadSession(sessionId: string): Promise<SessionData | null
       SELECT session_id, translations, created_at, last_updated
       FROM sessions
       WHERE session_id = ${sessionId}
-      AND (last_updated >= NOW() - ${SESSION_EXPIRATION_HOURS} * INTERVAL '1 hour')
     ` as SessionRow[];
 
     if (rows.length === 0) {
@@ -86,7 +85,6 @@ export async function saveSession(sessionData: SessionData): Promise<void> {
   }
 }
 
-// Add translation to session
 export async function addTranslationToSession(
   sessionId: string,
   originalText: string,
@@ -111,11 +109,10 @@ export async function addTranslationToSession(
 
   session.translations.push(translationEntry);
   session.lastUpdated = new Date().toISOString();
-  
+
   await saveSession(session);
 }
 
-// Get translation context for OpenAI (legacy - kept for compatibility)
 export async function getTranslationContext(sessionId: string, maxEntries: number = 5): Promise<string> {
   const session = await loadSession(sessionId);
 
@@ -123,7 +120,6 @@ export async function getTranslationContext(sessionId: string, maxEntries: numbe
     return '';
   }
 
-  // Get the most recent translations
   const recentTranslations = session.translations
     .slice(-maxEntries)
     .map(entry =>
@@ -134,16 +130,14 @@ export async function getTranslationContext(sessionId: string, maxEntries: numbe
   return `Previous translations in this conversation:\n${recentTranslations}\n\n`;
 }
 
-// Get conversation history as OpenAI messages format
-export async function getConversationHistory(sessionId: string, maxEntries: number = 10): Promise<Array<{role: 'user' | 'assistant', content: string}>> {
+export async function getConversationHistory(sessionId: string, maxEntries: number = 10): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
   const session = await loadSession(sessionId);
 
   if (!session || session.translations.length === 0) {
     return [];
   }
 
-  // Get the most recent translations and format them as conversation
-  const messages: Array<{role: 'user' | 'assistant', content: string}> = [];
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   const recentTranslations = session.translations.slice(-maxEntries);
 
@@ -171,4 +165,50 @@ export async function cleanupOldSessions(maxAgeHours: number = 24): Promise<void
   } catch (error) {
     console.error('Error cleaning up sessions:', error);
   }
-} 
+}
+
+export interface SessionSummary {
+  sessionId: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  translationCount: number;
+  createdAt: string;
+  lastUpdated: string;
+  preview: string;
+}
+
+export async function listSessions(limit: number = 50): Promise<SessionSummary[]> {
+  try {
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT session_id, translations, created_at, last_updated
+      FROM sessions
+      ORDER BY last_updated DESC
+      LIMIT ${limit}
+    ` as SessionRow[];
+
+    return rows.map((row) => {
+      const translations =
+        typeof row.translations === 'string'
+          ? (JSON.parse(row.translations) as TranslationEntry[])
+          : row.translations ?? [];
+
+      const firstEntry = translations[0];
+      const lastEntry = translations[translations.length - 1];
+
+      return {
+        sessionId: row.session_id,
+        sourceLanguage: firstEntry?.sourceLanguage ?? 'Unknown',
+        targetLanguage: firstEntry?.targetLanguage ?? 'Unknown',
+        translationCount: translations.length,
+        createdAt: row.created_at,
+        lastUpdated: row.last_updated,
+        preview: lastEntry?.originalText?.slice(0, 60) ?? 'No content',
+      };
+    });
+  } catch (error) {
+    console.error('Error listing sessions:', error);
+    return [];
+  }
+}
+

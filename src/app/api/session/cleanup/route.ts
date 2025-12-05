@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cleanupOldSessions } from '@/utils/sessionStorage';
+import { cleanupOldSessions } from '@/lib/db/sessions';
 
 export async function POST(request: NextRequest) {
   try {

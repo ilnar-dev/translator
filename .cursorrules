@@ -1,0 +1,15 @@
+# Cursor Rules for Next.js Project
+
+When working on this Next.js project, always follow the best practices and guidelines defined in:
+
+- `docs/agents.md` - Next.js Best Practices Playbook
+
+Refer to this documentation for:
+- Project structure and organization
+- Coding patterns and conventions
+- Performance optimization strategies
+- Security best practices
+- Testing and deployment guidelines
+
+Always prioritize the recommendations in `docs/agents.md` over any ad-hoc patterns you might observe in the current codebase.
+

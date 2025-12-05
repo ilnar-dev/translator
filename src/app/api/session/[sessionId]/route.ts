@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadSession } from '@/utils/sessionStorage';
+import { loadSession } from '@/lib/db/sessions';
 
 export async function GET(
   _request: NextRequest,
